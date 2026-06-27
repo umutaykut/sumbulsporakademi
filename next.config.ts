@@ -1,4 +1,10 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {};
-export default nextConfig;
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:6543/postgres?pgbouncer=true&connection_limit=1"
+DIRECT_URL="postgresql://USER:PASSWORD@HOST:5432/postgres"
+AUTH_SECRET="en-az-32-karakterlik-guclu-bir-anahtar"
+NEXT_PUBLIC_APP_URL="https://sumbulspor.com"
+WHATSAPP_GRAPH_API_VERSION="vXX.X"
+WHATSAPP_PHONE_NUMBER_ID="Meta-telefon-numarasi-kimligi"
+WHATSAPP_ACCESS_TOKEN="Meta-kalici-erisim-anahtari"
+WHATSAPP_NOTIFICATION_PHONE="905xxxxxxxxx"
+WHATSAPP_TEMPLATE_NAME="yeni_on_kayit"
+WHATSAPP_TEMPLATE_LANGUAGE="tr"

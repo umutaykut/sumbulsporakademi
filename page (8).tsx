@@ -1,10 +1,4 @@
-import { requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
-
-export default async function ObservationLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser(["COACH"]);
-  const accepted = await prisma.coachStandardsAcceptance.findUnique({ where: { coachId: user.id } });
-  if (!accepted) redirect("/coach/standartlar");
-  return children;
-}
+import "./globals.css";
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Sümbülspor Akademi", description: "Gelişim ve veli bilgilendirme sistemi" };
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="tr"><body>{children}</body></html>; }

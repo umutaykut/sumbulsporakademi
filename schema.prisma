@@ -1,393 +1,61 @@
-generator client {
-  provider = "prisma-client-js"
-}
+import { prisma } from "@/lib/prisma";
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
+export async function sendPreRegistrationWhatsApp(preRegistrationId: string) {
+  const registration = await prisma.preRegistration.findUnique({
+    where: { id: preRegistrationId },
+    include: { preferredGroup: true },
+  });
+  if (!registration) return { ok: false, status: "FAILED", error: "Ön kayıt bulunamadı." };
 
-enum Role {
-  ADMIN
-  COORDINATOR
-  COACH
-  PARENT
-}
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const recipient = process.env.WHATSAPP_NOTIFICATION_PHONE?.replace(/\D/g, "");
+  const version = process.env.WHATSAPP_GRAPH_API_VERSION;
+  if (!token || !phoneNumberId || !recipient || !version) {
+    await prisma.preRegistration.update({
+      where: { id: registration.id },
+      data: { whatsappStatus: "NOT_CONFIGURED", whatsappError: "WhatsApp Business ayarları eksik." },
+    });
+    return { ok: false, status: "NOT_CONFIGURED", error: "WhatsApp Business ayarları eksik." };
+  }
 
-enum RelationType {
-  MOTHER
-  FATHER
-  GUARDIAN
-  OTHER
-}
+  const studentName = `${registration.studentFirstName} ${registration.studentLastName}`;
+  const groupName = registration.preferredGroup?.name ?? "Belirtilmedi";
+  const message = `Yeni Sümbülspor Akademi ön kaydı\n\nSporcu: ${studentName}\nDoğum tarihi: ${registration.birthDate.toLocaleDateString("tr-TR")}\nTercih edilen grup: ${groupName}\nVeli: ${registration.parentName}\nTelefon: ${registration.parentPhone}\nE-posta: ${registration.parentEmail || "Belirtilmedi"}`;
+  const templateName = process.env.WHATSAPP_TEMPLATE_NAME;
+  const payload = templateName ? {
+    messaging_product: "whatsapp",
+    to: recipient,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "tr" },
+      components: [{ type: "body", parameters: [
+        { type: "text", text: studentName },
+        { type: "text", text: registration.parentName },
+        { type: "text", text: registration.parentPhone },
+        { type: "text", text: groupName },
+      ] }],
+    },
+  } : { messaging_product: "whatsapp", recipient_type: "individual", to: recipient, type: "text", text: { preview_url: false, body: message } };
 
-enum Attendance {
-  PRESENT
-  ABSENT
-  EXCUSED
-}
-
-enum LocationType {
-  FIELD
-  INDOOR
-  POOL
-  CINEMA
-}
-
-enum IncidentType {
-  INJURY
-  EMOTIONAL
-  PEER_PROBLEM
-  PARENT_MEETING
-  POOL_SAFETY
-  ATTENDANCE_RISK
-  OTHER
-}
-
-enum IncidentStatus {
-  OPEN
-  MONITORING
-  RESOLVED
-}
-
-enum ReportType {
-  WEEKLY
-  MONTHLY
-}
-
-enum ReportStatus {
-  DRAFT
-  EDITED
-  APPROVED
-  PUBLISHED
-}
-
-enum BadgeStatus {
-  SUGGESTED
-  COACH_REVIEWED
-  COORDINATOR_APPROVED
-  REJECTED
-  PUBLISHED
-}
-
-enum PreRegistrationStatus {
-  NEW
-  CONTACTED
-  APPROVED
-  REJECTED
-}
-
-model User {
-  id String @id @default(cuid())
-  name String
-  email String @unique
-  username String @unique
-  passwordHash String
-  role Role
-  mustChangePassword Boolean @default(false)
-  lastLoginAt DateTime?
-  temporaryPasswordCreatedAt DateTime?
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  parentStudents ParentStudent[]
-  coachGroups CoachGroup[]
-  coachedSessions Session[]
-  observations Observation[] @relation("CoachObservations")
-  observationEdits ObservationEditHistory[]
-  incidents Incident[]
-  approvedReports ParentReport[] @relation("ApprovedReports")
-  standards CoachStandardsAcceptance?
-  trainingProgress CoachTrainingProgress[]
-  passwordResetsPerformed PasswordResetAudit[] @relation("ResetPerformedBy")
-  passwordResetsReceived PasswordResetAudit[] @relation("ResetTarget")
-  deactivatedStudents Student[] @relation("StudentDeactivatedBy")
-}
-
-model PasswordResetAudit {
-  id String @id @default(cuid())
-  targetUserId String
-  performedByUserId String
-  createdAt DateTime @default(now())
-  targetUser User @relation("ResetTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
-  performedBy User @relation("ResetPerformedBy", fields: [performedByUserId], references: [id])
-  @@index([targetUserId, createdAt])
-}
-
-model Group {
-  id String @id @default(cuid())
-  name String @unique
-  ageMin Int
-  ageMax Int
-  description String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  students Student[]
-  coaches CoachGroup[]
-  sessions Session[]
-  monthlyReports MonthlyReport[]
-  preRegistrations PreRegistration[]
-}
-
-model PreRegistration {
-  id String @id @default(cuid())
-  studentFirstName String
-  studentLastName String
-  birthDate DateTime
-  parentName String
-  parentPhone String
-  parentEmail String?
-  preferredGroupId String?
-  note String?
-  consentAccepted Boolean
-  status PreRegistrationStatus @default(NEW)
-  whatsappStatus String @default("PENDING")
-  whatsappMessageId String?
-  whatsappError String?
-  whatsappSentAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  preferredGroup Group? @relation(fields: [preferredGroupId], references: [id])
-  @@index([status, createdAt])
-}
-
-model Student {
-  id String @id @default(cuid())
-  firstName String
-  lastName String
-  birthDate DateTime
-  groupId String
-  parentName String?
-  parentPhone String?
-  parentEmail String?
-  healthNotes String?
-  isActive Boolean @default(true)
-  deactivatedAt DateTime?
-  deactivationReason String?
-  deactivatedByUserId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  group Group @relation(fields: [groupId], references: [id])
-  parents ParentStudent[]
-  observations Observation[]
-  activities ActivityParticipation[]
-  incidents Incident[]
-  parentReports ParentReport[]
-  monthlyReports MonthlyReport[]
-  badgeSuggestions BadgeSuggestion[]
-  deactivatedBy User? @relation("StudentDeactivatedBy", fields: [deactivatedByUserId], references: [id])
-  @@index([groupId, isActive])
-}
-
-model ParentStudent {
-  id String @id @default(cuid())
-  parentUserId String
-  studentId String
-  relationType RelationType
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  parent User @relation(fields: [parentUserId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  @@unique([parentUserId, studentId])
-}
-
-model CoachGroup {
-  id String @id @default(cuid())
-  coachId String
-  groupId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  @@unique([coachId, groupId])
-}
-
-model Session {
-  id String @id @default(cuid())
-  date DateTime
-  dayOfWeek Int
-  groupId String
-  coachId String
-  weekNumber Int
-  theme String
-  footballGoal String
-  pedagogicalGoal String
-  locationType LocationType @default(FIELD)
-  hasPool Boolean @default(false)
-  hasFilm Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  group Group @relation(fields: [groupId], references: [id])
-  coach User @relation(fields: [coachId], references: [id])
-  observations Observation[]
-  activities ActivityParticipation[]
-  incidents Incident[]
-  @@unique([date, groupId])
-}
-
-model Observation {
-  id String @id @default(cuid())
-  sessionId String
-  studentId String
-  coachId String
-  attendance Attendance
-  effortScore Int?
-  disciplineScore Int?
-  teamworkScore Int?
-  confidenceResponsibilityScore Int?
-  footballGoalScore Int?
-  note String?
-  flaggedNote Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  coach User @relation("CoachObservations", fields: [coachId], references: [id])
-  editHistory ObservationEditHistory[]
-  @@unique([sessionId, studentId])
-  @@index([coachId, createdAt])
-}
-
-model ObservationEditHistory {
-  id String @id @default(cuid())
-  observationId String
-  editedByUserId String
-  oldValueJson String
-  newValueJson String
-  editedAt DateTime @default(now())
-  observation Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
-  editedBy User @relation(fields: [editedByUserId], references: [id])
-}
-
-model ActivityParticipation {
-  id String @id @default(cuid())
-  sessionId String
-  studentId String
-  poolParticipation String @default("none")
-  filmParticipation String @default("no_film")
-  indoorFootballScore Int?
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  @@unique([sessionId, studentId])
-}
-
-model Incident {
-  id String @id @default(cuid())
-  studentId String
-  sessionId String?
-  reportedByCoachId String
-  type IncidentType
-  description String
-  status IncidentStatus @default(OPEN)
-  coordinatorNote String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student Student @relation(fields: [studentId], references: [id])
-  session Session? @relation(fields: [sessionId], references: [id])
-  reportedBy User @relation(fields: [reportedByCoachId], references: [id])
-}
-
-model ParentReport {
-  id String @id @default(cuid())
-  studentId String
-  reportType ReportType
-  month Int?
-  weekNumber Int?
-  year Int
-  draftText String
-  coordinatorEditedText String?
-  status ReportStatus @default(DRAFT)
-  approvedByCoordinatorId String?
-  publishedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student Student @relation(fields: [studentId], references: [id])
-  approvedBy User? @relation("ApprovedReports", fields: [approvedByCoordinatorId], references: [id])
-  sections ParentReportSection[]
-}
-
-model ParentReportSection {
-  id String @id @default(cuid())
-  parentReportId String
-  sectionTitle String
-  sectionContent String
-  order Int
-  report ParentReport @relation(fields: [parentReportId], references: [id], onDelete: Cascade)
-}
-
-model MonthlyReport {
-  id String @id @default(cuid())
-  studentId String
-  groupId String
-  month Int
-  year Int
-  attendanceSummary String
-  footballDevelopmentText String
-  effortText String
-  disciplineText String
-  teamworkText String
-  confidenceText String
-  strengthsText String
-  supportNeedsText String
-  nextMonthGoal String
-  coachNote String?
-  coordinatorApproved Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student Student @relation(fields: [studentId], references: [id])
-  group Group @relation(fields: [groupId], references: [id])
-  @@unique([studentId, month, year])
-}
-
-model Badge {
-  id String @id @default(cuid())
-  name String @unique
-  description String
-  criteriaDescription String
-  isActive Boolean @default(true)
-  suggestions BadgeSuggestion[]
-}
-
-model BadgeSuggestion {
-  id String @id @default(cuid())
-  studentId String
-  month Int
-  year Int
-  badgeId String
-  reason String
-  status BadgeStatus @default(SUGGESTED)
-  coachId String?
-  coordinatorId String?
-  rejectionReason String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student Student @relation(fields: [studentId], references: [id])
-  badge Badge @relation(fields: [badgeId], references: [id])
-  @@unique([studentId, month, year, badgeId])
-}
-
-model CoachStandardsAcceptance {
-  id String @id @default(cuid())
-  coachId String @unique
-  acceptedAt DateTime @default(now())
-  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
-}
-
-model CoachTrainingModule {
-  id String @id @default(cuid())
-  title String @unique
-  content String
-  order Int
-  progress CoachTrainingProgress[]
-}
-
-model CoachTrainingProgress {
-  id String @id @default(cuid())
-  coachId String
-  moduleId String
-  completedAt DateTime @default(now())
-  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
-  module CoachTrainingModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  @@unique([coachId, moduleId])
+  try {
+    const response = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json() as { messages?: Array<{ id: string }>; error?: { message?: string } };
+    if (!response.ok) throw new Error(result.error?.message || `WhatsApp API hatası: ${response.status}`);
+    const messageId = result.messages?.[0]?.id;
+    await prisma.preRegistration.update({
+      where: { id: registration.id },
+      data: { whatsappStatus: "SENT", whatsappMessageId: messageId, whatsappError: null, whatsappSentAt: new Date() },
+    });
+    return { ok: true, status: "SENT", messageId };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "WhatsApp bildirimi gönderilemedi.";
+    await prisma.preRegistration.update({ where: { id: registration.id }, data: { whatsappStatus: "FAILED", whatsappError: errorMessage.slice(0, 500) } });
+    return { ok: false, status: "FAILED", error: errorMessage };
+  }
 }
