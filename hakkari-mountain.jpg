@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { getSession, roleHome } from "@/lib/auth";
+export default async function Unauthorized(){const user=await getSession();return <div className="auth-panel" style={{minHeight:"100vh"}}><div className="card" style={{textAlign:"center",maxWidth:480}}><div style={{fontSize:48}}>🔒</div><h1>Bu sayfaya erişim yetkiniz yok.</h1><p className="muted">Rolünüz için tanımlı alana geri dönebilirsiniz.</p><Link className="button" href={user?roleHome(user.role):"/login"}>Panele dön</Link></div></div>}

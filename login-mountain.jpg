@@ -1,0 +1,16 @@
+import Link from "next/link";
+import { logoutAction } from "@/app/actions";
+import type { SessionUser } from "@/lib/auth";
+
+type AppRole = "COORDINATOR" | "ADMIN" | "COACH" | "PARENT";
+
+const links = {
+  COORDINATOR: [["Genel Bakış","/coordinator/dashboard"],["Ön Kayıtlar","/coordinator/on-kayitlar"],["Sporcular","/coordinator/sporcular"],["Veli İletişim","/coordinator/veli-iletisim"],["Veli Raporları","/coordinator/raporlar"],["Rozetler","/coordinator/rozetler"],["Özel Durumlar","/coordinator/ozel-durumlar"]],
+  ADMIN: [["Genel Bakış","/coordinator/dashboard"],["Ön Kayıtlar","/coordinator/on-kayitlar"],["Sporcular","/coordinator/sporcular"],["Veli İletişim","/coordinator/veli-iletisim"],["Veli Raporları","/coordinator/raporlar"],["Rozetler","/coordinator/rozetler"]],
+  COACH: [["Bugün","/coach/dashboard"],["Gözlem Gir","/coach/gozlem"],["Veli İletişim","/coach/veli-iletisim"],["Standartlar","/coach/standartlar"]],
+  PARENT: [["Çocuğum","/parent/dashboard"]],
+} satisfies Record<AppRole, readonly (readonly [string, string])[]>;
+
+export function AppShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
+  return <div className="shell"><aside className="sidebar"><Link className="brand" href={links[user.role][0][1]}><span className="brand-mark">⚽</span><span>Sümbülspor<br/>Akademi</span></Link><nav className="nav">{links[user.role].map(([label,href])=><Link key={href} href={href}>{label}</Link>)}</nav><div className="sidebar-foot"><div className="user-chip"><strong>{user.name}</strong><div style={{opacity:.7,marginTop:3}}>{user.role === "COACH" ? "Antrenör" : user.role === "PARENT" ? "Veli" : "Koordinatör"}</div><form action={logoutAction}><button className="button ghost small" style={{marginTop:12,width:"100%"}}>Çıkış yap</button></form></div></div></aside><main className="main">{children}</main><nav className="mobile-nav">{links[user.role].slice(0,4).map(([label,href])=><Link key={href} href={href}>{label}</Link>)}</nav></div>;
+}

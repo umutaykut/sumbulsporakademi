@@ -1,0 +1,2 @@
+import { SCORE_LABELS } from "@/lib/constants";
+export function ScoreField({name,title}:{name:string;title:string}){return <div><div className="score-title">{title}</div><div className="score-row">{[1,2,3,4,5].map(n=><label className="score" title={SCORE_LABELS[n]} key={n}><input type="radio" name={name} value={n} defaultChecked={n===3}/><span>{n}</span></label>)}</div></div>}

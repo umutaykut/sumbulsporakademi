@@ -1,0 +1,34 @@
+"use client";
+
+import { resetParentPasswordAction, type PasswordResetState } from "@/app/actions";
+import { useActionState, useState } from "react";
+
+export function ParentPasswordReset({ parentUserId }: { parentUserId: string }) {
+  const initialState: PasswordResetState = null;
+  const [state, action, pending] = useActionState(resetParentPasswordAction, initialState);
+  const [copied, setCopied] = useState(false);
+
+  async function copyCredentials() {
+    if (!state?.temporaryPassword || !state.username) return;
+    await navigator.clipboard.writeText(`Kullanıcı adı: ${state.username}\nGeçici şifre: ${state.temporaryPassword}`);
+    setCopied(true);
+  }
+
+  return <div>
+    <form action={action}>
+      <input type="hidden" name="parentUserId" value={parentUserId}/>
+      <button className="button secondary small" disabled={pending}>
+        {pending ? "Oluşturuluyor…" : "Yeni geçici şifre"}
+      </button>
+    </form>
+    {state && !state.ok && <div className="notice" style={{marginTop:8}}>{state.message}</div>}
+    {state?.ok && <div className="notice success" style={{marginTop:10,minWidth:280}}>
+      <strong>{state.message}</strong>
+      <div style={{marginTop:8}}>Kullanıcı adı: <code>{state.username}</code></div>
+      <div>Geçici şifre: <code style={{fontSize:15,fontWeight:800}}>{state.temporaryPassword}</code></div>
+      <button type="button" className="button small" onClick={copyCredentials} style={{marginTop:10}}>
+        {copied ? "Kopyalandı" : "Bilgileri kopyala"}
+      </button>
+    </div>}
+  </div>;
+}

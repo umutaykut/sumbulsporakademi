@@ -1,0 +1,25 @@
+"use client";
+
+import { approveReportFormAction, publishReportFormAction, saveReportFormAction } from "@/app/actions";
+
+type Status = "DRAFT" | "EDITED" | "APPROVED" | "PUBLISHED";
+const labels: Record<Status, string> = { DRAFT: "Taslak", EDITED: "Düzenlendi", APPROVED: "Onaylandı", PUBLISHED: "Yayımlandı" };
+
+export function ReportApprovalCard({
+  id, studentName, reportType, text, status,
+}: { id: string; studentName: string; reportType: string; text: string; status: Status }) {
+  return <form className="card">
+    <input type="hidden" name="id" value={id}/>
+    <div className="row between">
+      <div><strong>{studentName}</strong><div className="muted">{reportType === "WEEKLY" ? "Haftalık bilgi" : "Aylık karne"}</div></div>
+      <span className={`badge ${status === "DRAFT" || status === "EDITED" ? "warn" : ""}`}>{labels[status]}</span>
+    </div>
+    <textarea className="input" name="text" defaultValue={text} style={{marginTop:15}} readOnly={status === "PUBLISHED"}/>
+    {status !== "PUBLISHED" && <div className="row" style={{marginTop:12,flexWrap:"wrap"}}>
+      <button className="button secondary small" formAction={saveReportFormAction}>Düzenlemeyi kaydet</button>
+      {status !== "APPROVED" && <button className="button small" formAction={approveReportFormAction}>Koordinatör onayı ver</button>}
+      {status === "APPROVED" && <button className="button small" formAction={publishReportFormAction}>Veliye yayımla</button>}
+    </div>}
+    {status === "PUBLISHED" && <div className="notice success" style={{marginTop:12}}>Bu bilgilendirme veli panelinde görünür.</div>}
+  </form>;
+}

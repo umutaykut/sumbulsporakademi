@@ -1,0 +1,10 @@
+import { changePasswordAction } from "@/app/actions";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+
+export default async function ChangePassword({searchParams}:{searchParams:Promise<{hata?:string}>}) {
+  const user = await getSession();
+  if (!user) redirect("/login");
+  const { hata } = await searchParams;
+  return <div className="auth-panel" style={{minHeight:"100vh"}}><div className="auth-card card"><div className="eyebrow">Hesap güvenliği</div><h2>Yeni şifrenizi belirleyin</h2><div className="notice">Güvenliğiniz için geçici şifrenizi değiştirmeniz gerekmektedir.</div>{hata&&<div className="notice" style={{marginTop:12}}>{hata}</div>}<form action={changePasswordAction}><div className="field"><label>Yeni şifre</label><input className="input" name="password" type="password" required minLength={8}/><small className="muted">En az 8 karakter, bir harf ve bir rakam.</small></div><button className="button">Şifremi değiştir</button></form></div></div>;
+}

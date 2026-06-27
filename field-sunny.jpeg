@@ -1,0 +1,42 @@
+import { AppShell } from "@/components/AppShell";
+import { requireUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export default async function ParentDashboard() {
+  const user = await requireUser(["PARENT"]);
+  const [links, badgeCatalog] = await Promise.all([prisma.parentStudent.findMany({
+    where: { parentUserId: user.id, student: { isActive: true } },
+    include: {
+      student: {
+        include: {
+          group: true,
+          parentReports: { where: { status: "PUBLISHED" }, orderBy: { publishedAt: "desc" } },
+          badgeSuggestions: { where: { status: "PUBLISHED" }, include: { badge: true } },
+        },
+      },
+    },
+  }), prisma.badge.findMany({ where: { isActive: true }, orderBy: { name: "asc" } })]);
+
+  return <AppShell user={user}>
+    <div className="topbar"><div><div className="eyebrow">Veli paneli</div><h1 className="title">Çocuğumun gelişimi</h1><p className="muted">Onaylanmış gelişim notları ve kazanımlar.</p></div></div>
+    {links.length === 0 && <div className="card"><h2>Aktif sporcu kaydı bulunmuyor</h2><p className="muted">Kayıt durumu hakkında bilgi almak için Sümbülspor Akademi koordinatörüyle iletişime geçebilirsiniz.</p></div>}
+    {links.map(({ student }) => <div key={student.id}>
+      <div className="card row"><div className="avatar" style={{width:56,height:56,fontSize:19}}>{student.firstName[0]}{student.lastName[0]}</div><div><h2 style={{margin:0}}>{student.firstName} {student.lastName}</h2><div className="muted">{student.group.name}</div></div></div>
+      <section className="section grid grid-2">
+        <div className="card">
+          <div className="section-head"><h2>Gelişim notları</h2><span className="badge">Koordinatör onaylı</span></div>
+          {student.parentReports.length ? <div className="list">{student.parentReports.map(report => <article className="list-item" key={report.id}><div className="row between"><strong>{report.reportType === "WEEKLY" ? "Haftalık bilgilendirme" : "Aylık gelişim karnesi"}</strong><span className="muted" style={{fontSize:12}}>{report.publishedAt?.toLocaleDateString("tr-TR")}</span></div><p style={{lineHeight:1.65,marginBottom:0,whiteSpace:"pre-line"}}>{report.coordinatorEditedText ?? report.draftText}</p></article>)}</div> : <p className="muted">Henüz yayımlanmış bir bilgilendirme bulunmuyor.</p>}
+        </div>
+        <div className="card">
+          <h2 style={{marginTop:0}}>Kazanılan rozetler</h2>
+          {student.badgeSuggestions.length ? <div className="list">{student.badgeSuggestions.map(suggestion => <div className="list-item row" key={suggestion.id}><div className="avatar">★</div><div><strong>{suggestion.badge.name}</strong><div className="muted" style={{fontSize:13}}>{suggestion.badge.description}</div><div style={{fontSize:13,marginTop:5}}><strong>Nasıl kazandı?</strong> {suggestion.reason}</div><div className="muted" style={{fontSize:12,marginTop:3}}>{suggestion.month}/{suggestion.year}</div></div></div>)}</div> : <p className="muted">Yeni rozetler gelişim sürecinde burada görünecek.</p>}
+        </div>
+      </section>
+    </div>)}
+    <section className="section">
+      <div className="section-head"><div><div className="eyebrow">Rozet rehberi</div><h2>Mevcut rozetler nasıl kazanılır?</h2></div><span className="badge">{badgeCatalog.length} rozet</span></div>
+      <div className="grid grid-2">{badgeCatalog.map(badge => <div className="card row" key={badge.id} style={{alignItems:"flex-start"}}><div className="avatar">★</div><div><strong>{badge.name}</strong><p className="muted" style={{fontSize:13,margin:"5px 0"}}>{badge.description}</p><div style={{fontSize:13}}><strong>Kazanma ölçütü:</strong> {badge.criteriaDescription}</div></div></div>)}</div>
+      <p className="muted" style={{fontSize:12}}>Rozetler sistem tarafından doğrudan verilmez; gözlem verileri ve gelişim davranışları dikkate alınarak koordinatör onayıyla yayımlanır.</p>
+    </section>
+  </AppShell>;
+}
